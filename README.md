@@ -81,8 +81,6 @@ k8s/
 monitoring/
   prometheus/       Scrape config, alert rules, namespace-scoped RBAC
   grafana/          Deployment and auto-provisioned datasource
-docs/
-  runbook.md        On-call reference
 ```
 
 
