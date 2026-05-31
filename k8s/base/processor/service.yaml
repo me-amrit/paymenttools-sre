@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: payment-processor
+  namespace: payment
+  labels:
+    app: payment-processor
+    component: processor
+spec:
+  type: ClusterIP
+  selector:
+    app: payment-processor
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+      protocol: TCP

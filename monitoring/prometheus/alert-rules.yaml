@@ -1,0 +1,73 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-alert-rules
+  namespace: monitoring
+  labels:
+    app: prometheus
+data:
+  payment-alerts.yaml: |
+    groups:
+      - name: payment-service-alerts
+        rules:
+          - alert: PaymentServiceDown
+            expr: up{job="payment-services"} == 0
+            for: 1m
+            labels:
+              severity: critical
+            annotations:
+              summary: "{{ $labels.app }} is down"
+              description: "{{ $labels.app }} has been unreachable for >1m. Check pod status: kubectl get pods -n payment -l app={{ $labels.app }}"
+              action: "1) kubectl describe pod -l app={{ $labels.app }} -n payment  2) Check for OOMKilled or CrashLoopBackOff  3) Check node health: kubectl get nodes"
+
+          - alert: GatewayHighErrorRate
+            expr: |
+              sum(rate(gateway_requests_total{status_code=~"5.."}[5m]))
+              /
+              sum(rate(gateway_requests_total[5m]))
+              > 0.05
+            for: 2m
+            labels:
+              severity: warning
+            annotations:
+              summary: "payment-gateway error rate above 5%"
+              description: "Gateway 5xx rate: {{ $value | humanizePercentage }}. Check if processor is healthy."
+              action: "1) kubectl logs -l app=payment-gateway -n payment --tail=50  2) Check processor: kubectl logs -l app=payment-processor -n payment --tail=20"
+
+          - alert: ProcessorHighErrorRate
+            expr: |
+              sum(rate(processor_requests_total{status_code=~"5.."}[5m]))
+              /
+              sum(rate(processor_requests_total[5m]))
+              > 0.05
+            for: 2m
+            labels:
+              severity: warning
+            annotations:
+              summary: "payment-processor error rate above 5%"
+              description: "Processor 5xx rate: {{ $value | humanizePercentage }}."
+              action: "1) kubectl logs -l app=payment-processor -n payment --tail=50  2) kubectl top pods -n payment"
+
+          - alert: GatewayHighLatency
+            expr: |
+              histogram_quantile(0.99, sum(rate(gateway_request_duration_seconds_bucket[5m])) by (le))
+              > 1
+            for: 5m
+            labels:
+              severity: warning
+            annotations:
+              summary: "payment-gateway p99 latency above 1s"
+              description: "Gateway p99: {{ $value | humanizeDuration }}. Check resource pressure and processor latency."
+              action: "1) kubectl top pods -n payment  2) kubectl get hpa -n payment"
+
+          - alert: ProcessorHighLatency
+            expr: |
+              histogram_quantile(0.99, sum(rate(processor_request_duration_seconds_bucket[5m])) by (le))
+              > 1
+            for: 5m
+            labels:
+              severity: warning
+            annotations:
+              summary: "payment-processor p99 latency above 1s"
+              description: "Processor p99: {{ $value | humanizeDuration }}."
+              action: "1) kubectl top pods -n payment  2) kubectl get hpa -n payment"
